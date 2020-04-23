@@ -404,6 +404,57 @@ static int ctx_login_set(lua_State *L)
 }
 
 /***
+ * Set TLS opts flag details
+ * @function tls_opts_set
+ * @tparam[opt=nil] int cert_reqs may be nil
+ * @tparam[opt=nil] string tls_version may be nil
+ * @tparam[opt=nil] string ciphers may be nil
+ * @see mosquitto_tls_opts_set
+ * @return[1] boolean true
+ * @return[2] nil
+ * @treturn[2] number error code
+ * @treturn[2] string error description.
+ * @raise For some out of memory or illegal states
+ */
+static int ctx_tls_opts_set(lua_State *L)
+{
+	ctx_t *ctx = ctx_check(L, 1);
+	int cert_reqs = luaL_optinteger(L, 2, 0);
+	const char *tls_version	 = luaL_optstring(L, 3, NULL);
+	const char *ciphers = luaL_optstring(L, 4, NULL);
+		
+	int rc = mosquitto_tls_opts_set(ctx->mosq, cert_reqs, tls_version, ciphers);
+	return mosq__pstatus(L, rc);
+}
+
+/***
+ * Set mosquitto protocol version (mqttv31 or mqttv311)
+ * @function version_set
+ * @tparam[opt=nil] string mqtt_version may be nil
+ * @see mosquitto_version_set
+ * @return[1] boolean true
+ * @return[2] nil
+ * @treturn[2] number error code
+ * @treturn[2] string error description.
+ * @raise For some out of memory or illegal states
+ */
+static int ctx_version_set(lua_State *L)
+{
+	ctx_t *ctx = ctx_check(L, 1);
+	const char *mqtt_version = luaL_optstring(L, 2, NULL);
+	int protocol_version=MQTT_PROTOCOL_V31;
+	if(!strcmp(mqtt_version, "mqttv31"))
+	{
+		protocol_version = MQTT_PROTOCOL_V31;
+	}else if(!strcmp(mqtt_version, "mqttv311")){
+		protocol_version = MQTT_PROTOCOL_V311;
+	}
+		
+	int rc = mosquitto_opts_set(ctx->mosq, MOSQ_OPT_PROTOCOL_VERSION, &protocol_version);
+	return mosq__pstatus(L, rc);
+}
+
+/***
  * Set TLS details
  * This doesn't currently support callbacks for passphrase prompting!
  * @function tls_set
@@ -577,6 +628,23 @@ static int ctx_reconnect_delay_set(lua_State *L)
 	bool reconnect_exponential_backoff = (lua_isboolean(L, 4) ? lua_toboolean(L, 4) : true);
 
 	int rc = mosquitto_reconnect_delay_set(ctx->mosq, reconnect_delay, reconnect_delay_max, reconnect_exponential_backoff);
+	return mosq__pstatus(L, rc);
+}
+
+/***
+ * @function reconnect_async
+ * @see mosquitto_reconnect_async
+ * @return[1] boolean true
+ * @return[2] nil
+ * @treturn[2] number error code
+ * @treturn[2] string error description.
+ * @raise For some out of memory or illegal states
+ */
+static int ctx_reconnect_async(lua_State *L)
+{
+	ctx_t *ctx = ctx_check(L, 1);
+
+	int rc = mosquitto_reconnect_async(ctx->mosq);
 	return mosq__pstatus(L, rc);
 }
 
@@ -1242,47 +1310,50 @@ static const struct luaL_Reg R[] = {
 };
 
 static const struct luaL_Reg ctx_M[] = {
-	{"destroy",			ctx_destroy},
-	{"__gc",			ctx_destroy},
-	{"reinitialise",	ctx_reinitialise},
-	{"will_set",		ctx_will_set},
-	{"will_clear",		ctx_will_clear},
-	{"login_set",		ctx_login_set},
-	{"tls_insecure_set",	ctx_tls_insecure_set},
-	{"tls_set",		ctx_tls_set},
-	{"tls_psk_set",		ctx_tls_psk_set},
-	{"threaded_set",	ctx_threaded_set},
-	{"connect",			ctx_connect},
-	{"connect_async",	ctx_connect_async},
-	{"reconnect",		ctx_reconnect},
-	{"reconnect_delay_set",	ctx_reconnect_delay_set},
-	{"disconnect",		ctx_disconnect},
-	{"publish",			ctx_publish},
-	{"subscribe",		ctx_subscribe},
-	{"unsubscribe",		ctx_unsubscribe},
-	{"loop",			ctx_loop},
-	{"loop_forever",	ctx_loop_forever},
-	{"loop_start",		ctx_loop_start},
-	{"loop_stop",		ctx_loop_stop},
-	{"socket",			ctx_socket},
-	{"loop_read",			ctx_loop_read},
-	{"loop_write",			ctx_loop_write},
-	{"loop_misc",			ctx_loop_misc},
-	{"want_write",		ctx_want_write},
-	{"callback_set",	ctx_callback_set},
-	{"__newindex",		ctx_callback_set},
+	{"destroy",					ctx_destroy},
+	{"__gc",					ctx_destroy},
+	{"reinitialise",			ctx_reinitialise},
+	{"will_set",				ctx_will_set},
+	{"will_clear",				ctx_will_clear},
+	{"login_set",				ctx_login_set},
+	{"tls_insecure_set",		ctx_tls_insecure_set},
+	{"tls_set",					ctx_tls_set},
+	{"tls_opts_set",			ctx_tls_opts_set},
+	{"tls_psk_set",				ctx_tls_psk_set},
+	{"threaded_set",			ctx_threaded_set},
+	{"version_set",				ctx_version_set},
+	{"connect",					ctx_connect},
+	{"connect_async",			ctx_connect_async},
+	{"reconnect",				ctx_reconnect},
+	{"reconnect_async",			ctx_reconnect_async},
+	{"reconnect_delay_set",		ctx_reconnect_delay_set},
+	{"disconnect",				ctx_disconnect},
+	{"publish",					ctx_publish},
+	{"subscribe",				ctx_subscribe},
+	{"unsubscribe",				ctx_unsubscribe},
+	{"loop",					ctx_loop},
+	{"loop_forever",			ctx_loop_forever},
+	{"loop_start",				ctx_loop_start},
+	{"loop_stop",				ctx_loop_stop},
+	{"socket",					ctx_socket},
+	{"loop_read",				ctx_loop_read},
+	{"loop_write",				ctx_loop_write},
+	{"loop_misc",				ctx_loop_misc},
+	{"want_write",				ctx_want_write},
+	{"callback_set",			ctx_callback_set},
+	{"__newindex",				ctx_callback_set},
 
 #ifdef LUA_MOSQUITTO_COMPAT
 	/* those are kept for compat */
-	{"set_will",		ctx_will_set},
-	{"clear_will",		ctx_will_clear},
-	{"set_login",		ctx_login_set},
-	{"start_loop",		ctx_loop_start},
-	{"stop_loop",		ctx_loop_stop},
-	{"set_callback",	ctx_callback_set},
-	{"read",		ctx_loop_read},
-	{"write",		ctx_loop_write},
-	{"misc",		ctx_loop_misc},
+	{"set_will",				ctx_will_set},
+	{"clear_will",				ctx_will_clear},
+	{"set_login",				ctx_login_set},
+	{"start_loop",				ctx_loop_start},
+	{"stop_loop",				ctx_loop_stop},
+	{"set_callback",			ctx_callback_set},
+	{"read",					ctx_loop_read},
+	{"write",					ctx_loop_write},
+	{"misc",					ctx_loop_misc},
 #endif
 
 	{NULL,		NULL}
